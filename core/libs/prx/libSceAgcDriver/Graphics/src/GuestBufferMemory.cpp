@@ -1873,36 +1873,34 @@ const GuestAllocations::Range* containingRange(const GuestAllocations::Lease& le
 
 std::vector<std::pair<std::uint64_t, std::uint64_t>> changedSpans(std::vector<RefreshedRange>& refreshed, const GuestAllocations::Lease& lease) {
     std::vector<std::pair<std::uint64_t, std::uint64_t>> spans;
-    std::vector<RefreshedRange> next;
-    next.reserve(lease.size());
     const auto add = [&](std::uint64_t address, std::uint64_t bytes) {
         if (!spans.empty() && address <= spans.back().second) spans.back().second = std::max(spans.back().second, address + bytes);
         else spans.emplace_back(address, address + bytes);
     };
-    const auto take = [&](const std::shared_ptr<const GuestAllocations::Range>& range) {
-        add(range->address, range->bytes);
-        next.push_back({range->address, range->bytes, range});
-    };
+    const auto entry = [](const std::shared_ptr<const GuestAllocations::Range>& range) { return RefreshedRange{range->address, range->bytes, range}; };
+    const auto same = [](const RefreshedRange& kept, const std::shared_ptr<const GuestAllocations::Range>& range) { return !kept.range.owner_before(range) && !range.owner_before(kept.range); };
     std::size_t first = 0;
     std::size_t second = 0;
     while (first < refreshed.size() || second < lease.size()) {
-        if (second == lease.size() || (first < refreshed.size() && refreshed[first].address < lease[second]->address)) {
-            add(refreshed[first].address, refreshed[first].bytes);
+        if (first < refreshed.size() && second < lease.size() && same(refreshed[first], lease[second])) {
             ++first;
+            ++second;
+        } else if (second == lease.size() || (first < refreshed.size() && refreshed[first].address < lease[second]->address)) {
+            add(refreshed[first].address, refreshed[first].bytes);
+            refreshed.erase(refreshed.begin() + static_cast<std::ptrdiff_t>(first));
         } else if (first == refreshed.size() || lease[second]->address < refreshed[first].address) {
-            take(lease[second++]);
+            add(lease[second]->address, lease[second]->bytes);
+            refreshed.insert(refreshed.begin() + static_cast<std::ptrdiff_t>(first), entry(lease[second]));
+            ++first;
+            ++second;
         } else {
-            if (refreshed[first].range.owner_before(lease[second]) || lease[second].owner_before(refreshed[first].range)) {
-                add(refreshed[first].address, refreshed[first].bytes);
-                take(lease[second]);
-            } else {
-                next.push_back(std::move(refreshed[first]));
-            }
+            add(refreshed[first].address, refreshed[first].bytes);
+            add(lease[second]->address, lease[second]->bytes);
+            refreshed[first] = entry(lease[second]);
             ++first;
             ++second;
         }
     }
-    refreshed = std::move(next);
     return spans;
 }
 
