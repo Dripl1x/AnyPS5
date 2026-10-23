@@ -25,16 +25,28 @@ inline unsigned UsableProcessors() {
     return count != 0 ? count : std::thread::hardware_concurrency();
 }
 
-inline std::chrono::nanoseconds HandoffSpinWindowFor(const char* configured, unsigned usableProcessors) {
-    constexpr std::chrono::microseconds automaticWindow{150};
+inline std::chrono::nanoseconds SpinWindowFor(const char* configured, unsigned usableProcessors, std::chrono::microseconds automaticWindow) {
     constexpr unsigned automaticProcessorsAbove = 8;
     constexpr long long longestWindowUs = 10000;
     if (configured != nullptr) return std::chrono::microseconds(std::clamp<long long>(std::strtoll(configured, nullptr, 10), 0, longestWindowUs));
     return usableProcessors > automaticProcessorsAbove ? std::chrono::nanoseconds(automaticWindow) : std::chrono::nanoseconds::zero();
 }
 
+inline std::chrono::nanoseconds HandoffSpinWindowFor(const char* configured, unsigned usableProcessors) {
+    return SpinWindowFor(configured, usableProcessors, std::chrono::microseconds{150});
+}
+
 inline std::chrono::nanoseconds HandoffSpinWindow() {
     static const std::chrono::nanoseconds window = HandoffSpinWindowFor(std::getenv("APS5_HANDOFF_SPIN_US"), UsableProcessors());
+    return window;
+}
+
+inline std::chrono::nanoseconds IdleSpinWindowFor(const char* configured, unsigned usableProcessors) {
+    return SpinWindowFor(configured, usableProcessors, std::chrono::microseconds{500});
+}
+
+inline std::chrono::nanoseconds IdleSpinWindow() {
+    static const std::chrono::nanoseconds window = IdleSpinWindowFor(std::getenv("APS5_IDLE_SPIN_US"), UsableProcessors());
     return window;
 }
 

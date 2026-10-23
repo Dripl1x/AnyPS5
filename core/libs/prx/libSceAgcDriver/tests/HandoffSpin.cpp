@@ -14,6 +14,7 @@ namespace {
 
 using namespace std::chrono_literals;
 using AgcDriver::HandoffSpinWindowFor;
+using AgcDriver::IdleSpinWindowFor;
 using AgcDriver::LockSpinning;
 using AgcDriver::SpinUntil;
 
@@ -32,6 +33,11 @@ void CheckWindowPolicy() {
     Require(HandoffSpinWindowFor("-5", 20) == 0ns, "a negative window spins");
     Require(HandoffSpinWindowFor("text", 20) == 0ns, "a window that is no number spins");
     Require(HandoffSpinWindowFor("99999999999", 20) == 10000us, "a huge window is not limited to 10000 us");
+    Require(IdleSpinWindowFor(nullptr, 20) == 500us, "20 usable processors do not spin idle for 500 us");
+    Require(IdleSpinWindowFor(nullptr, 8) == 0ns, "8 usable processors spin idle");
+    Require(IdleSpinWindowFor("0", 20) == 0ns, "APS5_IDLE_SPIN_US=0 still spins idle");
+    Require(IdleSpinWindowFor("150", 2) == 150us, "APS5_IDLE_SPIN_US=150 does not set 150 us on 2 logical processors");
+    Require(IdleSpinWindowFor("99999999999", 20) == 10000us, "a huge idle window is not limited to 10000 us");
 }
 
 void CheckUsableProcessors() {
